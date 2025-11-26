@@ -1,4 +1,4 @@
-﻿# Basic Lounge Logic System (BaLLS, Basic LLS)
+﻿# Basic Lounge Management System (BLMS)
 ### Система управления Лаундж-баром.
 С описанием системы (функциональными требованиями) можно ознакомиться [ТУТ](./REQUIREMENTS.md)
 ## Модули системы
