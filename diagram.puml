@@ -38,16 +38,16 @@ package "Lounge Domain" {
         - Чеки (Fact of Sale)
         - Статусы оплаты
         - Расчет стоимости
+        - Черный список
     end note
 }
 
-package "User & Loyalty Domain" {
+package "Loyalty Domain" {
     component [Loyalty Service] as Loyalty
-    database "Users DB\n(PostgreSQL)" as UserDB
+    database "Loyalty DB\n(PostgreSQL)" as LoyaltyDB
     note right of Loyalty
         - Гости (Профиль)
         - Баллы лояльности
-        - Черный список
     end note
 }
 
@@ -72,15 +72,16 @@ Analyst --> AnalyticsGateway : Аналитика
 
 StorageGateway --> Inventory : REST/gRPC
 LoungeGateway --> Lounge : REST/gRPC
-AnalyticsGateway --> Loyalty : REST/gRPC
+LoungeGateway --> Loyalty : REST/gRPC
+AnalyticsGateway --> Analytics : REST/gRPC
 
 Lounge ..> Inventory : Проверка наличия,\nсписание при продаже
-Lounge ..> Loyalty : Списание баллов,\nначисление баллов
-Lounge ..> Payment : Инициация оплаты
+Lounge .down.> Loyalty : Списание баллов,\nначисление баллов
+Lounge .down.> Payment : Инициация оплаты
 
 Inventory -down-> InvDB
-Lounge -down-> LoungeDB
-Loyalty -down-> UserDB
+Lounge -left-> LoungeDB
+Loyalty -down-> LoyaltyDB
 Analytics -down-> StatsDB
 
 Payment ..> BankAPI : Проведение транзакции
