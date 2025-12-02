@@ -13,10 +13,9 @@ cloud "Банковский эквайринг" as BankAPI
 
 queue "Message Broker\n(Kafka)" as EventBus
 
-package "API Gateways" {
-    [Lounge Gateway] as LoungeGateway
-    [Storage Gateway] as StorageGateway
-    [Analytics Gateway] as AnalyticsGateway
+package "API Gateway" {
+    [Gateway] as Gateway
+    database "WorkersDB\n(PostgreSQL)" as WorkersDB
 }
 
 package "Inventory Domain" {
@@ -66,14 +65,15 @@ package "Analytics Domain" {
     end note
 }
 
-Manager --> StorageGateway : Управление складом
-Master --> LoungeGateway : Управление чеком,\nбронью, статусом мест
-Analyst --> AnalyticsGateway : Аналитика
+Manager --> Gateway : Управление складом
+Master --> Gateway : Управление чеком,\nбронью, статусом мест
+Analyst --> Gateway : Аналитика
 
-StorageGateway --> Inventory : REST/gRPC
-LoungeGateway --> Lounge : REST/gRPC
-LoungeGateway --> Loyalty : REST/gRPC
-AnalyticsGateway --> Analytics : REST/gRPC
+Gateway --> Inventory : REST/gRPC, Authorized
+Gateway --> Lounge : REST/gRPC, Authorized
+Gateway --> Loyalty : REST/gRPC, Authorized
+Gateway --> Analytics : REST/gRPC, Authorized
+Gateway --> WorkersDB
 
 Lounge ..> Inventory : Проверка наличия,\nсписание при продаже
 Lounge .down.> Loyalty : Списание баллов,\nначисление баллов
