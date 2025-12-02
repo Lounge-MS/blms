@@ -15,7 +15,7 @@ queue "Message Broker\n(Kafka)" as EventBus
 
 package "API Gateway" {
     [Gateway] as Gateway
-    database "WorkersDB"
+    database "WorkersDB\n(PostgreSQL)" as WorkersDB
 }
 
 package "Inventory Domain" {
