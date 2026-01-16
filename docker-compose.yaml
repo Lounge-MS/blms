@@ -223,6 +223,8 @@ services:
     container_name: guest-gateway
     networks:
       - blms-network
+    ports:
+      - "8000:5000"
     build:
       context: ./guest-gateway
       dockerfile: Dockerfile
