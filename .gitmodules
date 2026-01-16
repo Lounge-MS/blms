@@ -1,0 +1,24 @@
+[submodule "banking-service"]
+	path = banking-service
+	url = https://github.com/Lounge-MS/banking-service
+[submodule "task-service"]
+	path = task-service
+	url = https://github.com/Lounge-MS/task-service
+[submodule "statistics-service"]
+	path = statistics-service
+	url = https://github.com/Lounge-MS/statistics-service
+[submodule "order-service"]
+	path = order-service
+	url = https://github.com/Lounge-MS/order-service
+[submodule "guest-gateway"]
+	path = guest-gateway
+	url = https://github.com/Lounge-MS/guest-gateway
+[submodule "reservation-server"]
+	path = reservation-server
+	url = https://github.com/Lounge-MS/reservation-server
+[submodule "inventory-service"]
+	path = inventory-service
+	url = https://github.com/Lounge-MS/inventory-service
+[submodule "user-service"]
+	path = user-service
+	url = https://github.com/Lounge-MS/user-service

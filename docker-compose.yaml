@@ -1,0 +1,259 @@
+services:
+  blms-postgres:
+    container_name: blms-postgres
+    image: postgres:latest
+    networks:
+      - blms-network
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: "postgres"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d
+      - blms-pg-data:/data/postgres
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      
+  blms-zookeeper:
+    container_name: blms-zookeeper
+    image: wurstmeister/zookeeper:latest
+    restart: unless-stopped
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    networks:
+      - blms-network
+
+  blms-kafka:
+    container_name: blms-kafka
+    image: wurstmeister/kafka:latest
+    restart: unless-stopped
+    environment:
+      KAFKA_LOG_DIRS: /kafka-data
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: blms-zookeeper:2181
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_LISTENERS: EXTERNAL://:9092,INTERNAL://:9094
+      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://127.0.0.1:9092,INTERNAL://blms-kafka:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT
+      ALLOW_PLAINTEXT_LISTENER: yes
+      KAFKA_CREATE_TOPICS: >
+        check_closed_event:1:1,
+        order_paid_event:1:1,
+        points_spent_event:1:1,
+        user_registered_event:1:1,
+        task_create_topic:1:1,
+        reservable_item_state_changed_event:1:1,
+        product_count_changed_event:1:1,
+        order_successful:1:1,
+    depends_on:
+      - blms-zookeeper
+    networks:
+      - blms-network
+    volumes:
+      - blms-kafka-data:/kafka-data
+    ports:
+      - '9092:9092'
+  
+  order-service:
+    container_name: order-service
+    networks:
+      - blms-network
+    build:
+      context: ./order-service
+      dockerfile: Dockerfile
+    environment:
+      Kestrel__Endpoints__Grpc__Url: "http://0.0.0.0:5000"
+      ExternalServices__InventoryService: "http://inventory-service:5000"
+      ExternalServices__UserService: "http://user-service:5000"
+      ExternalServices__BankingService: "http://banking-service:5000"
+      ExternalServices__ReservationService: "http://reservation-service:5000"
+      Kafka__Host: "blms-kafka:9094"
+      Kafka__Consumers__CheckClosed__Topic: "check_closed_event"
+      Producers__OrderSuccessful__Topic: "order_successful"
+      ConnectionStrings__Postgres: "Host=blms-postgres;Port=5432;Database=order_service_db;Username=postgres;Password=postgres"
+    depends_on:
+      blms-postgres:
+        condition: service_healthy
+      blms-kafka:
+        condition: service_started
+
+  user-service:
+    container_name: user-service
+    networks:
+      - blms-network
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=blms-postgres;Port=5432;Database=user_service_db;Username=postgres;Password=postgres"
+    depends_on:
+      blms-postgres:
+        condition: service_healthy
+      blms-kafka:
+        condition: service_started
+
+  reservation-service:
+    container_name: reservation-service
+    networks:
+      - blms-network
+    build:
+      context: ./reservation-server
+      dockerfile: Dockerfile
+    environment:
+      ConnectionStrings__ReservationDb: "Host=blms-postgres;Port=5432;Database=reservation_service_db;Username=postgres;Password=postgres"
+      Kafka__BootstrapServers: "blms-kafka:9094"
+      Kestrel__Endpoints__Grpc__Url: "http://0.0.0.0:5000"
+    depends_on:
+      blms-postgres:
+        condition: service_healthy
+      blms-kafka:
+        condition: service_started
+
+  inventory-service:
+    container_name: inventory-service
+    networks:
+      - blms-network
+    build:
+      context: ./inventory-service
+      dockerfile: Dockerfile
+    environment:
+      ConnectionStrings__InventoryDb: "Host=blms-postgres;Port=5432;Database=inventory_service_db;Username=postgres;Password=postgres"
+      Kafka__BootstrapServers: "blms-kafka:9094"
+      Kestrel__Endpoints__Grpc__Url: "http://0.0.0.0:5000"
+    depends_on:
+      blms-postgres:
+        condition: service_healthy
+      blms-kafka:
+        condition: service_started
+
+  task-service-kafka:
+    container_name: task-service-kafka
+    networks:
+      - blms-network
+    build:
+      context: ./task-service
+      dockerfile: Dockerfile.kafka
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=blms-postgres;Port=5432;Database=task_service_db;Username=postgres;Password=postgres"
+      Kafka__BootstrapServers: "blms-kafka:9094"
+      Kafka__Topic: "task_create_topic"
+    depends_on:
+      blms-postgres:
+        condition: service_healthy
+      blms-kafka:
+        condition: service_started
+
+  task-service-grpc:
+    container_name: task-service-grpc
+    networks:
+      - blms-network
+    build:
+      context: ./task-service
+      dockerfile: Dockerfile.grpc
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=blms-postgres;Port=5432;Database=task_service_db;Username=postgres;Password=postgres"
+      Kestrel__Endpoints__Grpc__Url: "http://0.0.0.0:5000"
+    depends_on:
+      blms-postgres:
+        condition: service_healthy
+      blms-kafka:
+        condition: service_started
+      task-service-kafka:
+        condition: service_started
+
+  mock-banking-provider:
+    container_name: mock-banking-provider
+    networks:
+      - blms-network
+    build:
+      context: ./banking-service
+      dockerfile: Dockerfile.mockprovider
+    environment:
+      Configuration__RequireUrlVisit: false
+
+  banking-service:
+    container_name: banking-service
+    networks:
+      - blms-network
+    build:
+      context: ./banking-service
+      dockerfile: Dockerfile.service
+    environment:
+      Kestrel__Endpoints__Grpc__Url: "http://0.0.0.0:5000"
+      Kestrel__Endpoints__Http__Url: "http://0.0.0.0:5001"
+      BankingProviders__Mock__BaseUrl: "http://mock-banking-provider:5000"
+      BankingService__WebhookBaseUrl: "http://banking-service:5001/reply"
+      Presentation__Grpc__Port: 5000
+      Kafka__Host: "blms-kafka:9094"
+      Kafka__Producer__Message__Topic: "check_closed_event"
+      MOCK_IDENTITY_TOKEN: "identity-token"
+      MOCK_ENCRYPTION: "50dgbqH4InrjIyLeJDEAsOHkOy28K5cNfERguI63tXc="
+      POSTGRES_CONNECTION_STRING: "Host=blms-postgres;Port=5432;Database=banking_service_db;Username=postgres;Password=postgres"
+      ORDER_SERVICE_IDENTITY_TOKEN: "order-service-identity-token"
+    depends_on:
+      blms-postgres:
+        condition: service_healthy
+      blms-kafka:
+        condition: service_started
+        
+  statistics-service:
+    container_name: statistics-service
+    networks:
+      - blms-network
+    build:
+      context: ./statistics-service
+      dockerfile: Dockerfile
+    depends_on:
+      blms-postgres:
+        condition: service_healthy
+      blms-kafka:
+        condition: service_started
+    environment:
+      POSTGRES_CONNECTION_STRING: "Host=blms-postgres;Port=5432;Database=statistics_service_db;Username=postgres;Password=postgres"
+      Kafka__Host: "blms-kafka:9094"
+      Kafka__OrderPaidEventConsumer__Topic: "order_paid_event"
+      Kestrel__Endpoints__Grpc__Url: "http://0.0.0.0:5000"
+
+  guest-gateway:
+    container_name: guest-gateway
+    networks:
+      - blms-network
+    build:
+      context: ./guest-gateway
+      dockerfile: Dockerfile
+    depends_on:
+      blms-postgres:
+        condition: service_healthy
+      blms-kafka:
+        condition: service_started
+    environment:
+      Grpc__UserServiceUrl: "http://user-service:5000"
+      Grpc__ReservationServiceUrl: "http://reservation-service:5000"
+
+  blms-kafka-ui:
+    container_name: blms-kafka-ui
+    image: provectuslabs/kafka-ui:latest
+    networks:
+      - blms-network
+    restart: unless-stopped
+    depends_on:
+      - blms-kafka
+    ports:
+      - "8082:8080"
+    environment:
+      kafka.clusters.0.name: blms-kafka
+      kafka.clusters.0.bootstrapServers: blms-kafka:9094
+
+
+networks:
+  blms-network:
+    driver: bridge
+
+volumes:
+  blms-kafka-data:
+  blms-pg-data:
