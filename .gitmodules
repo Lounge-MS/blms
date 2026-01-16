@@ -22,3 +22,6 @@
 [submodule "user-service"]
 	path = user-service
 	url = https://github.com/Lounge-MS/user-service
+[submodule "staff-gateway"]
+	path = staff-gateway
+	url = https://github.com/Lounge-MS/staff-gateway

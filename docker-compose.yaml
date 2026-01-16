@@ -58,7 +58,7 @@ services:
       - blms-kafka-data:/kafka-data
     ports:
       - '9092:9092'
-  
+
   order-service:
     container_name: order-service
     networks:
@@ -145,8 +145,6 @@ services:
     depends_on:
       blms-postgres:
         condition: service_healthy
-      blms-kafka:
-        condition: service_started
 
   task-service-grpc:
     container_name: task-service-grpc
@@ -200,7 +198,7 @@ services:
         condition: service_healthy
       blms-kafka:
         condition: service_started
-        
+
   statistics-service:
     container_name: statistics-service
     networks:
@@ -228,14 +226,26 @@ services:
     build:
       context: ./guest-gateway
       dockerfile: Dockerfile
-    depends_on:
-      blms-postgres:
-        condition: service_healthy
-      blms-kafka:
-        condition: service_started
     environment:
       Grpc__UserServiceUrl: "http://user-service:5000"
       Grpc__ReservationServiceUrl: "http://reservation-service:5000"
+
+  staff-gateway:
+    container_name: staff-gateway
+    networks:
+      - blms-network
+    ports:
+      - "8001:8080"
+    build:
+      context: ./staff-gateway
+      dockerfile: Dockerfile
+    environment:
+      Grpc__UserServiceUrl: "http://user-service:5000"
+      Grpc__InventoryServiceUrl: "http://inventory-service:5000"
+      Grpc__ReservationServiceUrl: "http://reservation-service:5000"
+      Grpc__OrderProcessingServiceUrl: "http://order-service:5000"
+      Grpc__StatisticsServiceUrl: "http://statistics-service:5000"
+      Grpc__TaskServiceUrl: "http://task-service:5000"
 
   blms-kafka-ui:
     container_name: blms-kafka-ui
@@ -250,7 +260,6 @@ services:
     environment:
       kafka.clusters.0.name: blms-kafka
       kafka.clusters.0.bootstrapServers: blms-kafka:9094
-
 
 networks:
   blms-network:
